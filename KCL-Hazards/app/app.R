@@ -179,10 +179,13 @@ cox_text <- function(sim, true_hr = NULL) {
 }
 
 save_grob <- function(g, file, w, h) {
-  png(file, width = w, height = h, units = "in", res = 300)
+  png(file, width = w, height = h + 0.25, units = "in", res = 300)
   on.exit(dev.off())
   grid::grid.newpage()
+  grid::pushViewport(footer_vp())
   grid::grid.draw(g)
+  grid::popViewport()
+  export_footer()
 }
 
 fmt <- function(x) vapply(x, function(v) format(signif(v, 3), trim = TRUE, scientific = FALSE), "")
@@ -290,11 +293,32 @@ tab_css <- "
 .navbar-default .navbar-nav > .active > a:focus { background-color:#d9561f; color:#ffffff; }
 "
 
+# ---- footer for exported PNG and PDF files: notice, app address, UTC date and time ----
+APP_URL <- "https://kinnersleyn.github.io/kcl-apps/Hazards/"
+export_footer <- function() {
+  txt <- sprintf("For educational purposes only, not for decision-making. %s Generated %s UTC",
+                 APP_URL, format(Sys.time(), "%Y-%m-%d %H:%M:%S", tz = "UTC"))
+  fs <- 7
+  w <- grid::convertWidth(grid::grobWidth(grid::textGrob(txt, gp = grid::gpar(fontsize = fs))), "npc", valueOnly = TRUE)
+  if (w > 0.96) fs <- fs * 0.96 / w
+  grid::grid.text(txt, y = grid::unit(2.5, "mm"), gp = grid::gpar(fontsize = fs, col = "grey35"))
+}
+# viewport that leaves room at the bottom of the page for the footer
+footer_vp <- function() grid::viewport(y = grid::unit(0.25, "in"), height = grid::unit(1, "npc") - grid::unit(0.25, "in"), just = "bottom")
+
+# ---- educational-use banner shown at the top of the app ----
+edu_banner <- tagList(
+  tags$style(HTML(".edu-banner{background:#fff4d6;border:1px solid #e0b64a;border-radius:6px;padding:7px 12px;margin:6px 0 10px;font-size:13px;line-height:1.35;color:#5c4400;}")),
+  tags$div(class = "edu-banner", role = "note",
+           tags$strong("For educational purposes only. "),
+           "This app uses simulated or illustrative data and has not been validated. It must not be used for decision-making, including the design, conduct or interpretation of any real clinical trial or any decision about patient care.")
+)
+
 ui <- navbarPage(
   "Proportional and non-proportional hazards",
   id = "tabs",
   windowTitle = "Proportional and non-proportional hazards",
-  header = tags$head(tags$style(HTML(tab_css)),
+  header = tagList(edu_banner, tags$head(tags$style(HTML(tab_css)),
     tags$script(HTML(paste0("$(document).on('shiny:connected', function(){",
                                 "Shiny.addCustomMessageHandler('save_file', function(m){",
                                 "var bin=atob(m.b64), n=bin.length, bytes=new Uint8Array(n);",
@@ -302,7 +326,7 @@ ui <- navbarPage(
                                 "var url=URL.createObjectURL(new Blob([bytes],{type:m.mime}));",
                                 "var a=document.createElement('a'); a.href=url; a.download=m.name;",
                                 "document.body.appendChild(a); a.click(); document.body.removeChild(a);",
-                                "setTimeout(function(){URL.revokeObjectURL(url);},10000);});});")))),
+                                "setTimeout(function(){URL.revokeObjectURL(url);},10000);});});"))))),
   
   tabPanel(
     "Design",

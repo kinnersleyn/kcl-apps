@@ -121,7 +121,29 @@ response_range_help_text <- paste0(
 
 # ── UI ────────────────────────────────────────────────────────────────────────
 
+# ---- footer for exported PNG and PDF files: notice, app address, UTC date and time ----
+APP_URL <- "https://kinnersleyn.github.io/kcl-apps/Bayesian/"
+export_footer <- function() {
+  txt <- sprintf("For educational purposes only, not for decision-making. %s Generated %s UTC",
+                 APP_URL, format(Sys.time(), "%Y-%m-%d %H:%M:%S", tz = "UTC"))
+  fs <- 7
+  w <- grid::convertWidth(grid::grobWidth(grid::textGrob(txt, gp = grid::gpar(fontsize = fs))), "npc", valueOnly = TRUE)
+  if (w > 0.96) fs <- fs * 0.96 / w
+  grid::grid.text(txt, y = grid::unit(2.5, "mm"), gp = grid::gpar(fontsize = fs, col = "grey35"))
+}
+# viewport that leaves room at the bottom of the page for the footer
+footer_vp <- function() grid::viewport(y = grid::unit(0.25, "in"), height = grid::unit(1, "npc") - grid::unit(0.25, "in"), just = "bottom")
+
+# ---- educational-use banner shown at the top of the app ----
+edu_banner <- tagList(
+  tags$style(HTML(".edu-banner{background:#fff4d6;border:1px solid #e0b64a;border-radius:6px;padding:7px 12px;margin:6px 0 10px;font-size:13px;line-height:1.35;color:#5c4400;}")),
+  tags$div(class = "edu-banner", role = "note",
+           tags$strong("For educational purposes only. "),
+           "This app uses simulated or illustrative data and has not been validated. It must not be used for decision-making, including the design, conduct or interpretation of any real clinical trial or any decision about patient care.")
+)
+
 ui <- fluidPage(
+  edu_banner,
   tags$head(
     tags$link(rel = "icon", type = "image/jpeg", href = "icon.jpg"),
     tags$link(rel = "apple-touch-icon", href = "icon.jpg"),
@@ -525,13 +547,15 @@ server <- function(input, output, session) {
     gp <- Filter(Negate(is.null), gp)
     h  <- if (length(gp) == 2) c(1, 3) else 1
     grid::grid.newpage()
-    grid::pushViewport(grid::viewport(layout = grid::grid.layout(length(gp), 1, heights = grid::unit(h, "null"))))
+    grid::pushViewport(grid::viewport(y = grid::unit(0.25, "in"), height = grid::unit(1, "npc") - grid::unit(0.25, "in"), just = "bottom",
+                                      layout = grid::grid.layout(length(gp), 1, heights = grid::unit(h, "null"))))
     for (i in seq_along(gp)) {
       grid::pushViewport(grid::viewport(layout.pos.row = i, layout.pos.col = 1))
       grid::grid.draw(ggplot2::ggplotGrob(gp[[i]]))
       grid::popViewport()
     }
     grid::popViewport()
+    export_footer()
   }
 
   result_lines <- function() {
@@ -580,6 +604,7 @@ server <- function(input, output, session) {
     grid::grid.text(paste(result_lines(), collapse = "\n"), x = grid::unit(0.5, "in"),
                     y = grid::unit(1, "npc") - grid::unit(0.5, "in"), just = c("left", "top"),
                     gp = grid::gpar(fontfamily = "mono", fontsize = 9))
+    export_footer()
   })
 }
 

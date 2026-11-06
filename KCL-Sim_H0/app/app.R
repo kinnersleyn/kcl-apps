@@ -138,7 +138,29 @@ bw_help <- paste0(
 
 # ── UI ────────────────────────────────────────────────────────────────────────
 
+# ---- footer for exported PNG and PDF files: notice, app address, UTC date and time ----
+APP_URL <- "https://kinnersleyn.github.io/kcl-apps/Sim_H0/"
+export_footer <- function() {
+  txt <- sprintf("For educational purposes only, not for decision-making. %s Generated %s UTC",
+                 APP_URL, format(Sys.time(), "%Y-%m-%d %H:%M:%S", tz = "UTC"))
+  fs <- 7
+  w <- grid::convertWidth(grid::grobWidth(grid::textGrob(txt, gp = grid::gpar(fontsize = fs))), "npc", valueOnly = TRUE)
+  if (w > 0.96) fs <- fs * 0.96 / w
+  grid::grid.text(txt, y = grid::unit(2.5, "mm"), gp = grid::gpar(fontsize = fs, col = "grey35"))
+}
+# viewport that leaves room at the bottom of the page for the footer
+footer_vp <- function() grid::viewport(y = grid::unit(0.25, "in"), height = grid::unit(1, "npc") - grid::unit(0.25, "in"), just = "bottom")
+
+# ---- educational-use banner shown at the top of the app ----
+edu_banner <- tagList(
+  tags$style(HTML(".edu-banner{background:#fff4d6;border:1px solid #e0b64a;border-radius:6px;padding:7px 12px;margin:6px 0 10px;font-size:13px;line-height:1.35;color:#5c4400;}")),
+  tags$div(class = "edu-banner", role = "note",
+           tags$strong("For educational purposes only. "),
+           "This app uses simulated or illustrative data and has not been validated. It must not be used for decision-making, including the design, conduct or interpretation of any real clinical trial or any decision about patient care.")
+)
+
 ui <- fluidPage(
+  edu_banner,
   tags$head(
     # Tell the server when plotly.js and crosstalk are loaded, so plots are not drawn too early
     tags$script(HTML(paste0("$(document).on('shiny:connected', function(){",
@@ -163,8 +185,21 @@ ui <- fluidPage(
       "    alert('The plot is not ready yet, so it cannot be downloaded.');\n",
       "    return;\n",
       "  }\n",
-      "  Plotly.downloadImage(gd, {format: 'png', filename: fname,\n",
-      "                            width: w, height: h, scale: 2});\n",
+      "  var url = 'https://kinnersleyn.github.io/kcl-apps/Sim_H0/';\n",
+      "  var d = new Date(), p2 = function(n){ return (n < 10 ? '0' : '') + n; };\n",
+      "  var stamp = d.getUTCFullYear() + '-' + p2(d.getUTCMonth() + 1) + '-' + p2(d.getUTCDate()) + ' ' + p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + ':' + p2(d.getUTCSeconds()) + ' UTC';\n",
+      "  var txt = 'For educational purposes only, not for decision-making. ' + url + ' Generated ' + stamp;\n",
+      "  var m = gd._fullLayout.margin, old = gd.layout.annotations || [], extra = 22;\n",
+      "  var lg = gd.layout.legend, ly = lg && lg.y;\n",
+      "  var size = Math.min(11, 0.95 * w / (txt.length * 0.56));\n",
+      "  var ann = {xref: 'paper', yref: 'paper', x: 0.5, y: 0, xanchor: 'center', yanchor: 'bottom', showarrow: false,\n",
+      "             xshift: (m.r - m.l) / 2, yshift: -(m.b + extra - 5), text: txt, font: {size: size, color: '#555555'}};\n",
+      "  var on = {'margin.b': m.b + extra, annotations: old.concat([ann])};\n",
+      "  var off = {'margin.b': m.b, annotations: old};\n",
+      "  if (lg && lg.yref === 'container' && typeof ly === 'number') { on['legend.y'] = ly + extra / h; off['legend.y'] = ly; }\n",
+      "  Plotly.relayout(gd, on).then(function() {\n",
+      "    return Plotly.downloadImage(gd, {format: 'png', filename: fname, width: w, height: h, scale: 2});\n",
+      "  }).then(function() { return Plotly.relayout(gd, off); });\n",
       "}"
     )))
   ),
@@ -582,6 +617,7 @@ server <- function(input, output, session) {
       ) |>
       config(
         displaylogo = FALSE,
+        modeBarButtonsToRemove = list("toImage"),
         toImageButtonOptions = list(format = "png",
                                     filename = "simulated_trials_under_H0",
                                     width = 1400, height = 800, scale = 2)
@@ -631,6 +667,7 @@ server <- function(input, output, session) {
     grid::grid.text(paste(lines, collapse = "\n"), x = grid::unit(0.5, "in"),
                     y = grid::unit(1, "npc") - grid::unit(0.5, "in"), just = c("left", "top"),
                     gp = grid::gpar(fontsize = 10))
+    export_footer()
   }
 
   # Static version of the plot for the PDF (plotly cannot be written to PDF from R)
@@ -698,7 +735,7 @@ server <- function(input, output, session) {
   on_save("dl_pdf", function() "simulated_trials_under_H0.pdf", "application/pdf", function(f) {
     g <- sim_gg(); l <- sim_lines()
     pdf(f, width = 10, height = 7); on.exit(dev.off())
-    print(g); text_page(l)
+    print(g, vp = footer_vp()); export_footer(); text_page(l)
   })
 }
 

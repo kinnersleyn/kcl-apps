@@ -444,8 +444,8 @@ plot_paths <- function(r, yscale = "log", axis_unit = "total", facet = "eff", nc
   
   # Panels (two per row), then a legend panel underneath, so the legend can never sit on the data.
   lay <- matrix(c(seq_len(P), rep(0, nr * nc - P)), nr, nc, byrow = TRUE)
-  layout(rbind(lay, P + 1), heights = c(rep(1, nr), 0.05 + 0.06 * nrows))
-  on.exit({layout(1); par(mar = c(5.1, 4.1, 4.1, 2.1), oma = c(0, 0, 0, 0))})
+  graphics::layout(rbind(lay, P + 1), heights = c(rep(1, nr), 0.05 + 0.06 * nrows))
+  on.exit({graphics::layout(1); par(mar = c(5.1, 4.1, 4.1, 2.1), oma = c(0, 0, 0, 0))})
   par(oma = c(0, 0, 2.4, 0), cex = 1)
   
   xt <- pretty(c(0, N / xdiv)); xt <- xt[xt <= 1.02 * N / xdiv]
@@ -682,6 +682,7 @@ write_results_pdf <- function(r, file, yscale = "log", axis_unit = "total", face
     plot.new(); plot.window(xlim = c(0, W), ylim = c(H, 0))
     text(M, 0.35, "Interim and futility analyses: design and results", adj = 0, font = 2, cex = 1.1)
     text(W - M, 0.35, format(Sys.Date()), adj = 1, cex = 0.8, col = "grey40")
+    export_footer()
     M + 0.5
   }
   y <- new_page()
@@ -715,8 +716,9 @@ write_results_pdf <- function(r, file, yscale = "log", axis_unit = "total", face
     y <- y + 0.35
   }
   # plot on its own page
-  par(xpd = FALSE, mar = c(5.1, 4.1, 4.1, 2.1))
+  par(xpd = FALSE, mar = c(5.1, 4.1, 4.1, 2.1), oma = c(1.8, 0, 0, 0))
   plot_paths(r, yscale, axis_unit, facet)
+  export_footer()
   invisible(file)
 }
 
@@ -725,7 +727,9 @@ write_plot_png <- function(r, file, width = 1400, height = NULL, res = 130, ysca
   height <- height %||% round(1000 * (150 + 450 * panel_rows(r, facet)) / 600)
   png(file, width = width, height = height, res = res)
   on.exit(dev.off())
+  par(oma = c(1.8, 0, 0, 0))
   plot_paths(r, yscale, axis_unit, facet)
+  export_footer()
   invisible(file)
 }
 
@@ -1124,7 +1128,29 @@ oc_panel <- sidebarLayout(
   )
 )
 
+# ---- footer for exported PNG and PDF files: notice, app address, UTC date and time ----
+APP_URL <- "https://kinnersleyn.github.io/kcl-apps/Interims/"
+export_footer <- function() {
+  txt <- sprintf("For educational purposes only, not for decision-making. %s Generated %s UTC",
+                 APP_URL, format(Sys.time(), "%Y-%m-%d %H:%M:%S", tz = "UTC"))
+  fs <- 7
+  w <- grid::convertWidth(grid::grobWidth(grid::textGrob(txt, gp = grid::gpar(fontsize = fs))), "npc", valueOnly = TRUE)
+  if (w > 0.96) fs <- fs * 0.96 / w
+  grid::grid.text(txt, y = grid::unit(2.5, "mm"), gp = grid::gpar(fontsize = fs, col = "grey35"))
+}
+# viewport that leaves room at the bottom of the page for the footer
+footer_vp <- function() grid::viewport(y = grid::unit(0.25, "in"), height = grid::unit(1, "npc") - grid::unit(0.25, "in"), just = "bottom")
+
+# ---- educational-use banner shown at the top of the app ----
+edu_banner <- tagList(
+  tags$style(HTML(".edu-banner{background:#fff4d6;border:1px solid #e0b64a;border-radius:6px;padding:7px 12px;margin:6px 0 10px;font-size:13px;line-height:1.35;color:#5c4400;}")),
+  tags$div(class = "edu-banner", role = "note",
+           tags$strong("For educational purposes only. "),
+           "This app uses simulated or illustrative data and has not been validated. It must not be used for decision-making, including the design, conduct or interpretation of any real clinical trial or any decision about patient care.")
+)
+
 ui <- fluidPage(
+  edu_banner,
   tags$head(tags$style(HTML(help_css)),
             # Saves a file sent from R (base64) through the browser, instead of Shiny's download link.
             # Shiny's own download links do not work in shinylive/webR.
